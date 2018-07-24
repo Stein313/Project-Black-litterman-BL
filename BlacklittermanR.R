@@ -96,7 +96,7 @@ update.packages(ask = FALSE)
 
   fulldata<-read.zoo(fulldata)
   
-  #save(fulldata,file="data.Rda")#Optional
+  #save(fulldata,file="fulldata.Rda")#Optional
 
 # Use reverse optimization to compute the vector of equilibrium returns
 
@@ -128,52 +128,45 @@ update.packages(ask = FALSE)
 
   wm<-c(40,5,40,15)# 
 # Initial weights.
-# wm影响其实很大 #
 
 # Parameters Assumptions
   P <- matrix(c( 1, 1,0 , 0, 0,
                  0, 0,-1, 0, 0,
                 -1, 0,0 , 1, 0,
                  0, 0,0 , 0, 1)
-                ,nrow=5,ncol=4) #一定要有正有负,注意WM的影???
+                ,nrow=5,ncol=4) # Negative number is necessary
 
   rownames(P)<-c('Q1','Q2','Q3','Q4','Q5')
 
   Q<-c(1.01^(1/240)-1,   1.03^(1/240)-1,    1.1^(1/240)-1,  1.02^(1/240)-1, 1.01^(1/240)-1)#主观预期===1货币2债券3股票=====P里边对应资产的收益率,0.05???5有影???,和预测周期相???
 
-  lambda<-2.5#市场风险回避系数(这里假设???2.5)
+  lambda<-2.5# default setting 
   meanp<-lambda*C%*%wm 
 
-  CF<-0.5*(P%*%C%*%t(P)) #信心校准因子
-  LF<-diag(c(.8,.8,.6,.8,.8))#主观预期的置信度，影响较大，当投资者对自己的主观判断信???(LF或Ω−1Ω???1)很大，则主观的期望收益就会被赋予较大的权重???
-  #主要影响在隐含组合配???
+  CF<-0.5*(P%*%C%*%t(P)) #confidence parameter
+  LF<-diag(c(.8,.8,.6,.8,.8))#confidence parameter
 
   omg_diag<-diag(CF)/diag(LF) 
-  Omega<-diag(omg_diag)#正定矩阵，置信度，相当于pior 先验概率???
+  Omega<-diag(omg_diag)#pior distribution
 
-    #tau <- 0.025#这部分是设定的，也可以用【信心调整指数】来???###########################
+    #tau <- 0.025# you could alse set tau directlly instead.
     tau<-sum(diag(CF))/mean(diag(Omega))
 
-  var1 <- ginv(tau * C)#计算用第一矩阵 ，Generalized Inverse of a Matrix. also could use diag()
+  var1 <- ginv(tau * C)#Generalized Inverse of a Matrix. also could use diag()
 
-  var2 <- t(P) %*% ginv(Omega) %*% P#计算用第二矩???
+  var2 <- t(P) %*% ginv(Omega) %*% P#
   var12 <- ginv(var1+var2)
 
   var3 <- (t(P) %*% ginv(Omega) %*% Q) + (var1 %*% meanp) 
   mhat <- var12 %*% var3 #needs to be non-zero
 
   ER<-mhat #implied expected returns.
-
   colnames(ER)<-'预期收益率ER'
-  #资产的期望收益ER等于市场均衡收益（meanp）和投资者主观期望收???(Q)的加权平均???
-  #其中meanp可以通过历史数据获得，Q则源自各种基础分析或来自媒体信息得到的人为主观判断???
-  #当投资者对自己的主观判断信???(LF或Ω−1Ω???1)很大，则主观的期望收益就会被赋予较大的权重???
-  #这是一种典型的Bayes分析方法???
-  #再带回meanReturns计算就可以了???
+  
   wp<-solve(C)%*%meanp%*%(t(rep(1,nrow(C)))%*%solve(C)%*%meanp)^(-1)
   we<-solve(C)%*%ER[,1]%*%(t(rep(1,nrow(C)))%*%solve(C)%*%ER[,1])^(-1)
-  colnames(wp)<-'Market' #均衡市场组合wm
-  colnames(we)<-'Tangent(ER)'#基于ER求出的切点组???
+  colnames(wp)<-'Market' #implied weight 
+  colnames(we)<-'Tangent(ER)'#implied weight 
 
     compare<-cbind(we,wp)
     compare
@@ -184,15 +177,15 @@ update.packages(ask = FALSE)
   meanReturns <- as.numeric(ER[,1])# if B-L model
 
   #Here we use the experts method instead.
-  meanReturns[1]<-1.0375^(1/240)-1#moneytary
-  meanReturns[2]<-1.060^(1/240)-1#stock
-  meanReturns[3]<-1.041^(1/240)-1#bond
-  meanReturns[4]<-1.055^(1/240)-1#other
+  #meanReturns[1]<-1.0375^(1/240)-1#moneytary
+  #meanReturns[2]<-1.060^(1/240)-1#stock
+  #meanReturns[3]<-1.041^(1/240)-1#bond
+  #meanReturns[4]<-1.055^(1/240)-1#other
 
-  covMat <- C  # should be var12 if use B-L
+  covMat <- var12 # should be var12 if use B-L ;'covMat = C' If you want Markowitz
 
   # Start with the names of the assets
-    port <- portfolio.spec(assets = c("Monetary","Stock","Bond","Other"))
+  port <- portfolio.spec(assets = c("Monetary","Stock","Bond","Other"))
 
 ##########Now for some constraints. Let’s use the following:#####
 #
@@ -202,11 +195,11 @@ update.packages(ask = FALSE)
 #################################################################
 
 
-# Box 单一资产的比例限制，可以控制单一资产的名称。可多资???
+# Box 
 # pspec <- add.constraint(portfolio=pspec, type="box", min=c(0.05, 0, 0.08, 0.1), 
 # max=c(0.4, 0.3, 0.7, 0.55))
 
-# max_pos限制为最多可进入的资产，栗子???
+# max_pos
 # pspec <- add.constraint(portfolio=pspec, type="position_limit", max_pos=3)
 
 # Add turnover constraint
@@ -215,15 +208,15 @@ update.packages(ask = FALSE)
 # Add target mean return constraint
 # pspec <- add.constraint(portfolio=pspec, type="return", return_target=0.007)
 # c("SBond","Monetary","Stock","Bond","Saving","Other")
-#port <- portfolio.spec(assets = c("SBond","Monetary","Stock","Bond","Saving","Other"))
+# port <- portfolio.spec(assets = c("SBond","Monetary","Stock","Bond","Saving","Other"))
 
-  port <- add.constraint(port, type = "box", min = c(0.07,0.05,0.50,0), max = c(1,1,1,0.15)) ###4.76%~25%
+  port <- add.constraint(port, type = "box", min = c(0.07,0.05,0.50,0), max = c(1,1,1,0.15)) #just for my case only
 
 
-# Leverage 仓位限制，full要求一直满仓???
+# Leverage 
   port <- add.constraint(portfolio = port, type = "full_investment")
 
-  port <- add.constraint(portfolio = port, type = "return", return_target=0.00000,enabled = FALSE)#其实不发挥作???
+  port <- add.constraint(portfolio = port, type = "return", return_target=0.00000,enabled = FALSE)
   #Let’s use the built-in random solver. 
   #This essentially creates a set of feasible portfolios that satisfy all the constraints we have specified. 
 
@@ -242,20 +235,20 @@ update.packages(ask = FALSE)
                                    rp = rportfolios)
 
   # Generate maximum return portfolio
-  maxret.port <- add.objective(port, type = "return", name = "mean")#这句可能有问???,could be "mean"
+  maxret.port <- add.objective(port, type = "return", name = "mean")#could be "mean"
   # Optimize
   maxret.opt <- optimize.portfolio(returns.data, maxret.port, optimize_method = "random", 
                                    rp = rportfolios)
 
   # Generate vector of returns
-  minret <- 0.0001/100 #并不是设定最低目标，而只是排除了一些不会出现在Frontier上的???
+  minret <- 0.0001/100 #THIS IS NOT THE BOTTOM LINE
   maxret <- maxret.opt$weights %*% meanReturns
 
   vec <- seq(minret, maxret, length.out = 200)#######mind this 100\#vec is the FINAL RETURN. but just points.
 
 #------------------------------------------------------------------------------------------------------------
 #Now that we have the minimum variance as well as the maximum return portfolios, 
-#we can build out the efficient frontier.##########################################全有???
+#we can build out the efficient frontier.#
 #Let’s add a weight concentration objective as well to ensure we don’t get highly concentrated portfolios.
 
 #NOTE: random_portfolios() ignores any diversification constraints. Hence, we didn’t add it previously.
@@ -269,25 +262,25 @@ update.packages(ask = FALSE)
   frontier.weights <- mat.or.vec(nr = length(vec), nc = ncol(returns.data))
   colnames(frontier.weights) <- colnames(returns.data)
   
-#下面的代码注意Port和eff.port的选取
+
   for(i in 1:length(vec))
   {
     eff.port <- add.constraint(port, type = "return", name = "mean", return_target = max(vec[i]))#找每一个收益的最佳选择,
-    #注意若不设置收益下限，return_target = vec[i]
+    # if you don't want a bottom line for Return rate，return_target = vec[i]
     eff.port <- add.objective(eff.port, type = "risk", name = "var")
-    #eff.port <- add.objective(eff.port, type = "weight_concentration", name = "HHI",
-    #                    conc_aversion = 0.001, risk_aversion=lambda)#风险厌恶
+    # eff.port <- add.objective(eff.port, type = "weight_concentration", name = "HHI",
+    #                    conc_aversion = 0.001, risk_aversion=lambda)# If you want risk aversion
   
   
-    eff.port <- optimize.portfolio(returns.data, eff.port, optimize_method = "ROI")####只会保留最后一个???-Return最高的
+    eff.port <- optimize.portfolio(returns.data, eff.port, optimize_method = "ROI")##
   
     eff.frontier$Risk[i] <- sqrt(t(eff.port$weights) %*% covMat %*% eff.port$weights)
   
     eff.frontier$Return[i] <- eff.port$weights %*% meanReturns
   
-    eff.frontier$Sharperatio[i] <- (eff.frontier$Return[i]-(1.015^(1/240)-1) )/ eff.frontier$Risk[i]#无风险收???1.5
+    eff.frontier$Sharperatio[i] <- (eff.frontier$Return[i]-(1.015^(1/240)-1) )/ eff.frontier$Risk[i]#
   
-    frontier.weights[i,] = eff.port$weights#这个很重要，这个是整个组合配置的最终解 
+    frontier.weights[i,] = eff.port$weights# This is the final answer actually 
   
     print(paste(round(i/length(vec) * 100, 0), "% done..."))
   }
@@ -310,18 +303,18 @@ eff.frontier
 #
 #============================================================================================#
 
-#标准差Numeric POINT
+#Numeric POINT
   feasible.sd <- apply(rportfolios, 1, function(x){
     return(sqrt(matrix(x, nrow = 1) %*% covMat %*% matrix(x, ncol = 1)))
   })
 
-#收益率Numeric point
+#Numeric point
   feasible.means <- apply(rportfolios, 1, function(x){
     return(x %*% meanReturns)
   })
 
 #Coefficients of Variance **sharoe ratio
-  feasible.sr <- (feasible.means / feasible.sd) #夏普???(无逾期收益中位???)
+  feasible.sr <- (feasible.means / feasible.sd) #
   
   p <-  plot_ly(x = feasible.sd, y = feasible.means, color = feasible.sr, 
                 mode = "markers", type = "scattergl", showlegend = FALSE,
@@ -333,7 +326,7 @@ eff.frontier
   
     layout(title = "",
            yaxis = list(title = "日均收益", tickformat = ".2%"),
-           xaxis = list(title = "标准???", tickformat = ".2%"),
+           xaxis = list(title = "标准", tickformat = ".2%"),
            plot_bgcolor = "#434343",
            paper_bgcolor = "#F8F8F8")
 
